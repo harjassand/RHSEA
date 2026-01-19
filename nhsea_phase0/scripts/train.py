@@ -44,7 +44,10 @@ def main() -> int:
     args = ap.parse_args()
 
     torch.manual_seed(args.seed)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
 
     data_cfg = DatasetConfig(task=args.task, split="train", size=args.train_size, seed=args.seed)
     if args.task == "forward":
