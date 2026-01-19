@@ -1,9 +1,5 @@
 #!/usr/bin/env python
-"""Phase 0.4: single-instance pipeline smoke test (no training).
-
-Creates one synthetic instance, runs operator -> clamp -> sigmoid -> TopK,
-computes a few basic metrics, and prints a compact sanity report.
-"""
+"""Phase 0.4: single-instance pipeline smoke test (no training)."""
 
 from __future__ import annotations
 
@@ -12,44 +8,14 @@ import argparse
 import numpy as np
 
 from nhsea.generators import ForwardChainConfig, generate_forward_chain, candidate_token_spans, premise_token_set
+from nhsea.metrics import (
+    delta_cyc_stats,
+    participation_ratio,
+    prop_pipeline_a,
+    prop_pipeline_b,
+    token_sel_loc_gap,
+)
 from nhsea.operator import OperatorSpec, build_run_operator, token_weights
-from nhsea.topk import topk_rownorm
-
-
-def sel_loc_gap(W: np.ndarray, prem: list[int], cand_true: list[int], cand_false: list[int]) -> float:
-    """Selectivity localization gap: mean prem->true minus prem->false mass."""
-    prem = np.asarray(prem, dtype=np.int64)
-    true = np.asarray(cand_true, dtype=np.int64)
-    false = np.asarray(cand_false, dtype=np.int64)
-    if prem.size == 0 or true.size == 0 or false.size == 0:
-        return 0.0
-    mass_true = W[np.ix_(prem, true)].mean()
-    mass_false = W[np.ix_(prem, false)].mean()
-    return float(mass_true - mass_false)
-
-
-def cycle_weight(W: np.ndarray, k: int) -> float:
-    """Average cycle weight of length k via trace(W^k)/T."""
-    if k < 2:
-        raise ValueError("k must be >= 2")
-    T = W.shape[0]
-    wk = np.linalg.matrix_power(W, k)
-    return float(np.trace(wk) / T)
-
-
-def preference_ratio(W: np.ndarray, prem: list[int], cand_true: list[int], cand_false: list[int]) -> float:
-    """Ratio of prem->true mass to total prem->candidate mass."""
-    prem = np.asarray(prem, dtype=np.int64)
-    true = np.asarray(cand_true, dtype=np.int64)
-    false = np.asarray(cand_false, dtype=np.int64)
-    if prem.size == 0 or true.size == 0 or false.size == 0:
-        return 0.0
-    mass_true = W[np.ix_(prem, true)].sum()
-    mass_false = W[np.ix_(prem, false)].sum()
-    denom = mass_true + mass_false
-    if denom == 0:
-        return 0.0
-    return float(mass_true / denom)
 
 
 def main() -> int:
@@ -60,10 +26,12 @@ def main() -> int:
     ap.add_argument("--k", type=int, default=2)
     ap.add_argument("--alpha", type=float, default=0.1)
     ap.add_argument("--beta", type=float, default=0.1)
-    ap.add_argument("--variant", type=str, default="mechanism")
+    ap.add_argument("--k_tok", type=int, default=8)
+    ap.add_argument("--k_prop", type=int, default=2)
     args = ap.parse_args()
 
-    cfg = ForwardChainConfig()
+    # Keep premises small so the matched-random pool can cover |A_prem| in a tiny smoke instance.
+    cfg = ForwardChainConfig(n_prem=2)
     inst = generate_forward_chain(args.run_id, args.instance_id, cfg)
     T = len(inst.tokens)
 
@@ -71,33 +39,59 @@ def main() -> int:
     L = rng.normal(size=(T, T))
     U = rng.normal(size=(T, T))
 
-    spec = OperatorSpec(alpha=args.alpha, beta=args.beta, variant=args.variant)
-    O = build_run_operator(L, U, spec)
-    W = token_weights(O)
-    W_hat = topk_rownorm(W, k=args.k)
-
     cand1, cand2 = candidate_token_spans(inst)
     prem = list(premise_token_set(inst))
     true_cand = cand1 if inst.true_index == 0 else cand2
     false_cand = cand2 if inst.true_index == 0 else cand1
 
-    metrics = {
-        "SelLocGap": sel_loc_gap(W_hat, prem, true_cand, false_cand),
-        "DeltaCyc2": cycle_weight(W_hat, 2),
-        "DeltaCyc3": cycle_weight(W_hat, 3),
-        "DeltaCyc4": cycle_weight(W_hat, 4),
-        "PR": preference_ratio(W_hat, prem, true_cand, false_cand),
-    }
+    spec_mech = OperatorSpec(alpha=args.alpha, beta=args.beta, variant="mechanism")
+    spec_sym = OperatorSpec(alpha=args.alpha, beta=args.beta, variant="symmetric_control")
 
-    row_sums = W_hat.sum(axis=1)
+    sel = token_sel_loc_gap(
+        L=L,
+        U=U,
+        spec_mech=spec_mech,
+        spec_sym=spec_sym,
+        k_tok=args.k_tok,
+        prem_tokens=prem,
+        cand_true_tokens=true_cand,
+        cand_false_tokens=false_cand,
+        run_id=args.run_id,
+        instance_id=args.instance_id,
+    )
+
+    O_mech = build_run_operator(L, U, spec_mech)
+    W_tok = token_weights(O_mech)
+    W_prop_a = prop_pipeline_a(W_tok, inst.prop_spans, k_tok=args.k_tok, k_prop=args.k_prop)
+    W_prop_b = prop_pipeline_b(W_tok, inst.prop_spans, k_prop=args.k_prop)
+
+    delta_a = delta_cyc_stats(W_prop_a, args.run_id, args.instance_id, n_perm=100, ells=(2, 3, 4), salt_prefix="PERMROW_A")
+    delta_b = delta_cyc_stats(W_prop_b, args.run_id, args.instance_id, n_perm=100, ells=(2, 3, 4), salt_prefix="PERMROW_B")
+
+    pr_a = participation_ratio(W_prop_a, inst.premises)
+    pr_b = participation_ratio(W_prop_b, inst.premises)
+
+    row_sums_a = W_prop_a.sum(axis=1)
+    row_sums_b = W_prop_b.sum(axis=1)
     print("Smoke report:")
     print(f"- tokens: {T}")
-    print(f"- W_hat shape: {W_hat.shape}")
-    print(f"- row sum min/max: {row_sums.min():.4f} / {row_sums.max():.4f}")
-    print(f"- nonzeros: {int(np.count_nonzero(W_hat))}")
+    print(f"- W_tok shape: {W_tok.shape}")
+    print(f"- W_prop_A shape: {W_prop_a.shape}")
+    print(f"- W_prop_B shape: {W_prop_b.shape}")
+    print(f"- row sum A min/max: {row_sums_a.min():.4f} / {row_sums_a.max():.4f}")
+    print(f"- row sum B min/max: {row_sums_b.min():.4f} / {row_sums_b.max():.4f}")
+    print(f"- nonzeros W_prop_A: {int(np.count_nonzero(W_prop_a))}")
+    print(f"- nonzeros W_prop_B: {int(np.count_nonzero(W_prop_b))}")
     print(f"- true candidate index: {inst.true_index}")
-    for k, v in metrics.items():
-        print(f"- {k}: {v:.6f}")
+    print(f"- SelLocGap: {sel.sel_loc_gap:.6f}")
+    print(f"- DeltaCyc2_A: {delta_a[2]:.6f}")
+    print(f"- DeltaCyc3_A: {delta_a[3]:.6f}")
+    print(f"- DeltaCyc4_A: {delta_a[4]:.6f}")
+    print(f"- DeltaCyc2_B: {delta_b[2]:.6f}")
+    print(f"- DeltaCyc3_B: {delta_b[3]:.6f}")
+    print(f"- DeltaCyc4_B: {delta_b[4]:.6f}")
+    print(f"- PR_A: {pr_a:.6f}")
+    print(f"- PR_B: {pr_b:.6f}")
     return 0
 
 
