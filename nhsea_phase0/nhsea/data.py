@@ -9,10 +9,12 @@ import torch
 from torch.utils.data import Dataset
 
 from .generators import (
+    BackwardChainConfig,
     CycleRegimeConfig,
     ForwardChainConfig,
     build_vocab,
     encode_tokens,
+    generate_backward_chain,
     generate_cycle_regime,
     generate_forward_chain,
 )
@@ -69,6 +71,30 @@ class CycleRegimeDataset(Dataset):
         input_ids = encode_tokens(inst.tokens, self.vocab)
         attn_mask = [1 if tok != 0 else 0 for tok in input_ids]
         label = inst.regime
+        return {
+            "input_ids": torch.tensor(input_ids, dtype=torch.long),
+            "attn_mask": torch.tensor(attn_mask, dtype=torch.long),
+            "label": torch.tensor(label, dtype=torch.long),
+            "meta": inst,
+        }
+
+
+class BackwardChainDataset(Dataset):
+    def __init__(self, cfg: DatasetConfig, gen_cfg: BackwardChainConfig) -> None:
+        self.cfg = cfg
+        self.gen_cfg = gen_cfg
+        self.vocab = build_vocab(max_props=cfg.max_props, vocab_size=cfg.vocab_size)
+        self.run_id = f"{cfg.task}_{cfg.split}_seed{cfg.seed}"
+
+    def __len__(self) -> int:
+        return self.cfg.size
+
+    def __getitem__(self, idx: int) -> Dict[str, Any]:
+        instance_id = f"{self.cfg.split}_{idx}"
+        inst = generate_backward_chain(self.run_id, instance_id, self.gen_cfg)
+        input_ids = encode_tokens(inst.tokens, self.vocab)
+        attn_mask = [1 if tok != 0 else 0 for tok in input_ids]
+        label = inst.true_index
         return {
             "input_ids": torch.tensor(input_ids, dtype=torch.long),
             "attn_mask": torch.tensor(attn_mask, dtype=torch.long),

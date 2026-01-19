@@ -92,16 +92,54 @@ def token_sel_loc_gap(
     v0_rand = _seed_vector(rand_tokens, T)
 
     def adj_locgap_for(spec: OperatorSpec) -> float:
-        W_hat = token_topk_rownorm(L, U, spec, k_tok)
-        v_prem = _propagate_normalize(W_hat, v0_prem, s_tok)
-        v_rand = _propagate_normalize(W_hat, v0_rand, s_tok)
-        locgap_prem = _loc_gap(v_prem, cand_true_tokens, cand_false_tokens)
-        locgap_rand = _loc_gap(v_rand, cand_true_tokens, cand_false_tokens)
-        return locgap_prem - locgap_rand
+        return token_adj_loc_gap(
+            L=L,
+            U=U,
+            spec=spec,
+            k_tok=k_tok,
+            prem_tokens=prem_tokens,
+            cand_true_tokens=cand_true_tokens,
+            cand_false_tokens=cand_false_tokens,
+            run_id=run_id,
+            instance_id=instance_id,
+        )
 
     adj_mech = adj_locgap_for(spec_mech)
     adj_sym = adj_locgap_for(spec_sym)
     return SelLocResult(adj_locgap_mech=adj_mech, adj_locgap_sym=adj_sym, sel_loc_gap=adj_mech - adj_sym)
+
+
+def token_adj_loc_gap(
+    L: np.ndarray,
+    U: np.ndarray,
+    spec: OperatorSpec,
+    k_tok: int,
+    prem_tokens: Sequence[int],
+    cand_true_tokens: Sequence[int],
+    cand_false_tokens: Sequence[int],
+    run_id: str,
+    instance_id: str,
+) -> float:
+    """Compute AdjLocGap for a single operator spec."""
+    T = L.shape[0]
+    if T <= 0:
+        raise ValueError("T must be positive")
+    if L.shape[0] != L.shape[1] or U.shape != L.shape:
+        raise ValueError("L and U must be square and same shape")
+
+    s_tok = min(5, T)
+    cand_all = list(cand_true_tokens) + list(cand_false_tokens)
+    rand_tokens = sample_R0(run_id, instance_id, T, prem_tokens, cand_all)
+
+    v0_prem = _seed_vector(prem_tokens, T)
+    v0_rand = _seed_vector(rand_tokens, T)
+
+    W_hat = token_topk_rownorm(L, U, spec, k_tok)
+    v_prem = _propagate_normalize(W_hat, v0_prem, s_tok)
+    v_rand = _propagate_normalize(W_hat, v0_rand, s_tok)
+    locgap_prem = _loc_gap(v_prem, cand_true_tokens, cand_false_tokens)
+    locgap_rand = _loc_gap(v_rand, cand_true_tokens, cand_false_tokens)
+    return locgap_prem - locgap_rand
 
 
 def _prop_token_sets(prop_spans: Sequence[Tuple[int, int]]) -> List[np.ndarray]:

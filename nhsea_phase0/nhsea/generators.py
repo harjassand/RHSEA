@@ -41,9 +41,30 @@ class CycleRegimeInstance:
 
 
 @dataclass(frozen=True)
+class BackwardChainInstance:
+    instance_id: str
+    tokens: List[str]
+    # proposition spans: list of (start, end) inclusive indices in tokens
+    prop_spans: List[Tuple[int, int]]
+    # candidate premise proposition IDs
+    candidates: Tuple[int, int]
+    # index in candidates tuple which is true (0 or 1)
+    true_index: int
+
+@dataclass(frozen=True)
 class ForwardChainConfig:
     T: int = 64
     n_prem: int = 2
+    n_mid: int = 2
+    prop_len_min: int = 3
+    prop_len_max: int = 6
+    vocab_size: int = 200
+
+
+@dataclass(frozen=True)
+class BackwardChainConfig:
+    T: int = 64
+    n_cand_prem: int = 2
     n_mid: int = 2
     prop_len_min: int = 3
     prop_len_max: int = 6
@@ -158,6 +179,42 @@ def generate_forward_chain(run_id: str, instance_id: str, cfg: ForwardChainConfi
         tokens=tokens,
         prop_spans=prop_spans,
         premises=premises,
+        candidates=candidates,
+        true_index=true_index,
+    )
+
+
+def generate_backward_chain(run_id: str, instance_id: str, cfg: BackwardChainConfig) -> BackwardChainInstance:
+    """Generate a backward (abductive) chain instance with two candidate premises."""
+    seed = instance_seed_u32(run_id, instance_id, salt="GEN_BWD_V1")
+    rng = np.random.default_rng(seed)
+
+    n_props = cfg.n_cand_prem + cfg.n_mid + 1
+    prop_ids = list(range(n_props))
+    lengths = [int(rng.integers(cfg.prop_len_min, cfg.prop_len_max + 1)) for _ in prop_ids]
+    cand_len = int(rng.integers(cfg.prop_len_min, cfg.prop_len_max + 1))
+    lengths[0] = cand_len
+    lengths[1] = cand_len
+
+    tokens, prop_spans = _place_props_sequential(rng, prop_ids, lengths, cfg.vocab_size)
+
+    candidates = (0, 1)
+    true_index = int(rng.integers(0, 2))
+    true_prem = candidates[true_index]
+    conclusion = n_props - 1
+
+    edges: List[Tuple[int, int]] = []
+    for i in range(cfg.n_mid):
+        mid = cfg.n_cand_prem + i
+        edges.append((true_prem, mid))
+        edges.append((mid, conclusion))
+
+    tokens = _append_edges(tokens, edges, cfg.T)
+
+    return BackwardChainInstance(
+        instance_id=instance_id,
+        tokens=tokens,
+        prop_spans=prop_spans,
         candidates=candidates,
         true_index=true_index,
     )

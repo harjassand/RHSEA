@@ -87,10 +87,16 @@ def main() -> int:
     ap.add_argument("--report", type=str, default="leak_gate_report.json")
     ap.add_argument("--bootstrap", type=int, default=0)
     ap.add_argument("--ci_alpha", type=float, default=0.05)
+    ap.add_argument("--config", type=str, default="")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
 
-    cfg = ForwardChainConfig()
+    if args.config:
+        cfg_data = json.loads(Path(args.config).read_text())
+        fwd_cfg = cfg_data.get("forward_gen", {})
+        cfg = ForwardChainConfig(**fwd_cfg)
+    else:
+        cfg = ForwardChainConfig()
 
     feats = []
     labels = []

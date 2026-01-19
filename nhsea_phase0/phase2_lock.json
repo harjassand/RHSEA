@@ -1,0 +1,38 @@
+{
+  "seeds": [0, 1, 2],
+  "alpha_beta": {
+    "mechanism": [0.5, 1.0],
+    "symmetric_control": [0.5, 1.0],
+    "no_injection": [0.5, 0.0],
+    "no_drift": [0.0, 1.0]
+  },
+  "k_tok": 16,
+  "k_prop": 4,
+  "train": {
+    "forward": {"size": 50000, "steps": 10000},
+    "cycle": {"size": 50000, "steps": 10000}
+  },
+  "eval": {
+    "forward": {"size": 10000},
+    "cycle": {"size": 10000}
+  },
+  "batch_size": 64,
+  "optimizer": {"lr": 0.0003, "weight_decay": 0.01},
+  "forward_gen": {
+    "T": 64,
+    "n_prem": 2,
+    "n_mid": 2,
+    "prop_len_min": 3,
+    "prop_len_max": 6,
+    "vocab_size": 200
+  },
+  "cycle_gen": {
+    "T": 64,
+    "M": 8,
+    "n_prem": 2,
+    "prop_len_min": 3,
+    "prop_len_max": 6,
+    "vocab_size": 200,
+    "edge_prob": 0.25
+  }
+}
