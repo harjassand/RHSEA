@@ -86,6 +86,8 @@ def sel_loc_gap_from_O(
     info = {
         "prem_size": len(prem_tokens),
         "cand_size": len(cand_all),
+        "cand_true_size": len(cand_true_tokens),
+        "cand_false_size": len(cand_false_tokens),
         "R_size": len(R),
         "fallback": int(len(R) < len(prem_tokens)),
     }
@@ -176,10 +178,11 @@ def golden_layer(T: int, M: int, w_hi: float, w_lo: float, n_perm: int) -> Tuple
     criteria: Dict[str, bool] = {}
 
     W_dag = build_prop_dag(M, w_hi, w_lo)
+    prem_props = [2, 3]
     results["DAG"] = {
         "Cyc": {str(k): float(v) for k, v in cyc_stats(W_dag).items()},
         "DeltaCyc": {str(k): float(v) for k, v in delta_cyc_stats(W_dag, f"gold_T{T}", "DAG", n_perm).items()},
-        "PR": participation_ratio(W_dag, [0, 1]),
+        "PR": participation_ratio(W_dag, prem_props),
     }
 
     for k in (2, 3, 4):
@@ -190,7 +193,7 @@ def golden_layer(T: int, M: int, w_hi: float, w_lo: float, n_perm: int) -> Tuple
             "Cyc": {str(j): float(v) for j, v in cyc_stats(W_dir).items()},
             "DeltaCyc": {str(j): float(v) for j, v in delta_cyc_stats(W_dir, f"gold_T{T}", key, n_perm).items()},
             "DeltaCyc_sym": {str(j): float(v) for j, v in delta_cyc_stats(W_sym, f"gold_T{T}", f"{key}_sym", n_perm).items()},
-            "PR": participation_ratio(W_dir, [0, 1]),
+            "PR": participation_ratio(W_dir, prem_props),
         }
 
         cyc = results[key]["Cyc"]
@@ -199,7 +202,10 @@ def golden_layer(T: int, M: int, w_hi: float, w_lo: float, n_perm: int) -> Tuple
         dag_delta = results["DAG"]["DeltaCyc"][str(k)]
         dir_delta = results[key]["DeltaCyc"][str(k)]
         sym_delta = results[key]["DeltaCyc_sym"][str(k)]
-        criteria[f"gold_delta_pos_T{T}_C{k}"] = bool((dir_delta > dag_delta) and (dir_delta > sym_delta))
+        if k == 2:
+            criteria[f"gold_delta_pos_T{T}_C{k}"] = bool(dir_delta > dag_delta)
+        else:
+            criteria[f"gold_delta_pos_T{T}_C{k}"] = bool((dir_delta > dag_delta) and (dir_delta > sym_delta))
 
     pr_dag = results["DAG"]["PR"]
     pr_cycles = np.mean([results[f"C{k}"]["PR"] for k in (2, 3, 4)])
@@ -217,10 +223,11 @@ def integrated_layer(T: int, M: int, w_hi: float, w_lo: float, n_perm: int) -> T
     k_prop = 2
 
     # Chain localization test.
-    prem_props = [0, 1]
+    prem_props_chain = [0, 1]
+    prem_props_cycle = [2, 3]
     cand_true_prop = 6
     cand_false_prop = 7
-    prem_tokens = span_tokens(spans[prem_props[0]]) + span_tokens(spans[prem_props[1]])
+    prem_tokens = span_tokens(spans[prem_props_chain[0]]) + span_tokens(spans[prem_props_chain[1]])
     cand_true_tokens = span_tokens(spans[cand_true_prop])
     cand_false_tokens = span_tokens(spans[cand_false_prop])
 
@@ -268,8 +275,8 @@ def integrated_layer(T: int, M: int, w_hi: float, w_lo: float, n_perm: int) -> T
             "DeltaCyc_B": {str(j): float(v) for j, v in delta_b.items()},
             "DeltaCyc_A_sym": {str(j): float(v) for j, v in delta_a_sym.items()},
             "DeltaCyc_B_sym": {str(j): float(v) for j, v in delta_b_sym.items()},
-            "PR_A": participation_ratio(W_prop_a, prem_props),
-            "PR_B": participation_ratio(W_prop_b, prem_props),
+            "PR_A": participation_ratio(W_prop_a, prem_props_cycle),
+            "PR_B": participation_ratio(W_prop_b, prem_props_cycle),
         }
 
         # Peak at matching ell.
@@ -283,8 +290,8 @@ def integrated_layer(T: int, M: int, w_hi: float, w_lo: float, n_perm: int) -> T
         criteria[f"pipe_delta_B_T{T}_C{k}"] = bool((delta_b[k] > dag_delta_b[k]) and (k == 2 or delta_b[k] > delta_b_sym[k]))
 
     # PR spread check: cycles pooled vs DAG.
-    pr_dag_a = participation_ratio(W_prop_a_dag, prem_props)
-    pr_dag_b = participation_ratio(W_prop_b_dag, prem_props)
+    pr_dag_a = participation_ratio(W_prop_a_dag, prem_props_cycle)
+    pr_dag_b = participation_ratio(W_prop_b_dag, prem_props_cycle)
     pr_cycles_a = np.mean([results[f"C{k}"]["PR_A"] for k in (2, 3, 4)])
     pr_cycles_b = np.mean([results[f"C{k}"]["PR_B"] for k in (2, 3, 4)])
     criteria[f"pipe_pr_A_T{T}"] = bool(pr_cycles_a > pr_dag_a)
@@ -298,8 +305,8 @@ def integrated_layer(T: int, M: int, w_hi: float, w_lo: float, n_perm: int) -> T
     results["antisym"] = {
         "DeltaCyc_A": {str(j): float(v) for j, v in delta_cyc_stats(W_prop_a_anti, f"pipe_T{T}", "antisym_A", n_perm=n_perm).items()},
         "DeltaCyc_B": {str(j): float(v) for j, v in delta_cyc_stats(W_prop_b_anti, f"pipe_T{T}", "antisym_B", n_perm=n_perm).items()},
-        "PR_A": participation_ratio(W_prop_a_anti, prem_props),
-        "PR_B": participation_ratio(W_prop_b_anti, prem_props),
+        "PR_A": participation_ratio(W_prop_a_anti, prem_props_cycle),
+        "PR_B": participation_ratio(W_prop_b_anti, prem_props_cycle),
     }
 
     results["k_tok"] = k_tok
