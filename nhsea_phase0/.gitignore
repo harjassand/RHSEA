@@ -2,6 +2,7 @@
 /.pytest_cache/
 /leak_gate_report.json
 /runs/
+reports/
 *.pt
 __pycache__/
 *.pyc
