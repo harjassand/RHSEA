@@ -1,0 +1,7 @@
+/.venv/
+/.pytest_cache/
+/leak_gate_report.json
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/

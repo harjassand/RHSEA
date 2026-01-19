@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nhsea"
+version = "0.0.0"
+description = "NHSEA phase 0 package"
+requires-python = ">=3.9"
+
+[tool.setuptools]
+packages = ["nhsea"]

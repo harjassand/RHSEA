@@ -1,4 +1,4 @@
-"""Deterministic per-instance seeding and matched-random sampling.
+r"""Deterministic per-instance seeding and matched-random sampling.
 
 NHSEA-v1 preregistered rule:
 - Per-instance RNG seed is the 32-bit unsigned integer given by the first 8 hex

@@ -10,7 +10,9 @@ This is a minimal harness intended to catch obvious generator bugs or biases.
 from __future__ import annotations
 
 import argparse
+import json
 from dataclasses import asdict
+from pathlib import Path
 
 import numpy as np
 
@@ -57,15 +59,36 @@ def fit_logreg(X: np.ndarray, y: np.ndarray, steps: int = 400, lr: float = 0.1, 
     return w
 
 
+def bootstrap_ci(
+    y: np.ndarray,
+    scores: np.ndarray,
+    n_boot: int,
+    seed: int,
+    alpha: float,
+) -> tuple[float, float]:
+    """Bootstrap CI for AUROC using paired resamples."""
+    rng = np.random.default_rng(seed)
+    aucs = np.empty(n_boot, dtype=np.float64)
+    n = len(y)
+    for i in range(n_boot):
+        idx = rng.integers(0, n, size=n)
+        aucs[i] = auc_rank(y[idx], scores[idx])
+    lo = float(np.quantile(aucs, alpha / 2.0))
+    hi = float(np.quantile(aucs, 1.0 - alpha / 2.0))
+    return lo, hi
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=4000)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--run_id", type=str, default="phase0")
     ap.add_argument("--auroc_max", type=float, default=0.55)
+    ap.add_argument("--report", type=str, default="leak_gate_report.json")
+    ap.add_argument("--bootstrap", type=int, default=0)
+    ap.add_argument("--ci_alpha", type=float, default=0.05)
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
-
 
     cfg = ForwardChainConfig()
 
@@ -86,9 +109,11 @@ def main() -> int:
         f_pos = (start1 / len(inst.tokens), start2 / len(inst.tokens))
         f_char = (sum(len(t) for t in tok1), sum(len(t) for t in tok2))
 
+        row = []
         for (a, b) in (f_len, f_pos, f_char):
-            feats.append([min(a, b), max(a, b), abs(a - b)])
-            labels.append(inst.true_index)
+            row.extend([min(a, b), max(a, b), abs(a - b)])
+        feats.append(row)
+        labels.append(inst.true_index)
 
     X = np.asarray(feats, dtype=np.float64)
     y = np.asarray(labels, dtype=np.int64)
@@ -102,15 +127,39 @@ def main() -> int:
     w = fit_logreg(Xz, y)
     scores = Xz @ w
     auroc = auc_rank(y, scores)
+    auroc_ci = None
+    if args.bootstrap > 0:
+        lo, hi = bootstrap_ci(y, scores, n_boot=args.bootstrap, seed=args.seed, alpha=args.ci_alpha)
+        auroc_ci = (lo, hi)
 
     if args.verbose:
         print("ForwardChainConfig:", asdict(cfg))
         print("AUROC:", auroc)
 
+    features_used = [
+        "len_min", "len_max", "len_absdiff",
+        "pos_min", "pos_max", "pos_absdiff",
+        "char_min", "char_max", "char_absdiff",
+    ]
+    report = {
+        "run_id": args.run_id,
+        "seed": args.seed,
+        "n": args.n,
+        "features": features_used,
+        "auroc": float(auroc),
+        "auroc_ci": auroc_ci,
+        "auroc_max": args.auroc_max,
+        "bootstrap": args.bootstrap,
+        "passed": bool(auroc <= args.auroc_max),
+    }
+    report_path = Path(args.report)
+    report_path.write_text(json.dumps(report, indent=2, sort_keys=True))
+
     if auroc > args.auroc_max:
         print(f"FAIL leak gate: AUROC={auroc:.4f} > {args.auroc_max}")
         return 2
     print(f"PASS leak gate: AUROC={auroc:.4f} <= {args.auroc_max}")
+    print(f"Wrote report: {report_path}")
     return 0
 
 
