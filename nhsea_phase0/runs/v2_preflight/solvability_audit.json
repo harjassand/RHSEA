@@ -1,0 +1,84 @@
+{
+  "backward": {
+    "ambiguous": 0,
+    "ambiguous_rate": 0.0,
+    "by_seed": [
+      {
+        "ambiguous": 0,
+        "ambiguous_rate": 0.0,
+        "seed": 0,
+        "total": 10000
+      },
+      {
+        "ambiguous": 0,
+        "ambiguous_rate": 0.0,
+        "seed": 1,
+        "total": 10000
+      },
+      {
+        "ambiguous": 0,
+        "ambiguous_rate": 0.0,
+        "seed": 2,
+        "total": 10000
+      }
+    ],
+    "ceiling_acc": 1.0,
+    "reasons": {},
+    "task": "backward",
+    "total": 30000
+  },
+  "by_n_facts": {
+    "8": {
+      "ambiguous_rate": 0.0,
+      "ceiling_acc": 1.0,
+      "total": 60000
+    }
+  },
+  "config": {
+    "T": 64,
+    "n_facts": 8,
+    "n_symbols": 16,
+    "vocab_size": 200
+  },
+  "config_source": "runs/v2_preflight/forward_train/no_injection/seed_0/checkpoint_final.pt",
+  "eval_size": 10000,
+  "forward": {
+    "ambiguous": 0,
+    "ambiguous_rate": 0.0,
+    "by_seed": [
+      {
+        "ambiguous": 0,
+        "ambiguous_rate": 0.0,
+        "seed": 0,
+        "total": 10000
+      },
+      {
+        "ambiguous": 0,
+        "ambiguous_rate": 0.0,
+        "seed": 1,
+        "total": 10000
+      },
+      {
+        "ambiguous": 0,
+        "ambiguous_rate": 0.0,
+        "seed": 2,
+        "total": 10000
+      }
+    ],
+    "ceiling_acc": 1.0,
+    "reasons": {},
+    "task": "forward",
+    "total": 30000
+  },
+  "overall": {
+    "ambiguous": 0,
+    "ambiguous_rate": 0.0,
+    "ceiling_acc": 1.0,
+    "total": 60000
+  },
+  "seeds": [
+    0,
+    1,
+    2
+  ]
+}
