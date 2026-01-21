@@ -2,6 +2,8 @@
 
 ## A. Locked artifacts + provenance
 
+NOTE: NHSEA_V1_FINAL_CLOSEOUT_LOCKED_R2 exists because NHSEA_HYPOTHESIS.md was added after the first lock; the original NHSEA_V1_FINAL_CLOSEOUT_LOCKED tag remains preserved at its prior commit.
+
 Repo HEAD (at closeout tag): d3d6a50b1b73a377c7e6e4c8c30807caeacb2faa
 Final closeout tag: NHSEA_V1_FINAL_CLOSEOUT_LOCKED
 Tagged commit: d3d6a50b1b73a377c7e6e4c8c30807caeacb2faa
