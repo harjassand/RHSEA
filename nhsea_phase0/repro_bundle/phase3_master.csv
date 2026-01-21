@@ -1,0 +1,13 @@
+variant,seed,train_task,eval_task,accuracy,checkpoint,eval_dir
+mechanism,0,forward,forward,1.0,runs/phase3/forward_train/mechanism/seed_0/checkpoint_final.pt,runs/phase3/forward_train/mechanism/seed_0/eval_forward
+mechanism,0,forward,backward,0.516,runs/phase3/forward_train/mechanism/seed_0/checkpoint_final.pt,runs/phase3/forward_train/mechanism/seed_0/eval_backward
+no_injection,0,forward,forward,1.0,runs/phase3/forward_train/no_injection/seed_0/checkpoint_final.pt,runs/phase3/forward_train/no_injection/seed_0/eval_forward
+no_injection,0,forward,backward,0.516,runs/phase3/forward_train/no_injection/seed_0/checkpoint_final.pt,runs/phase3/forward_train/no_injection/seed_0/eval_backward
+mechanism,1,forward,forward,1.0,runs/phase3/forward_train/mechanism/seed_1/checkpoint_final.pt,runs/phase3/forward_train/mechanism/seed_1/eval_forward
+mechanism,1,forward,backward,0.5054,runs/phase3/forward_train/mechanism/seed_1/checkpoint_final.pt,runs/phase3/forward_train/mechanism/seed_1/eval_backward
+no_injection,1,forward,forward,1.0,runs/phase3/forward_train/no_injection/seed_1/checkpoint_final.pt,runs/phase3/forward_train/no_injection/seed_1/eval_forward
+no_injection,1,forward,backward,0.5054,runs/phase3/forward_train/no_injection/seed_1/checkpoint_final.pt,runs/phase3/forward_train/no_injection/seed_1/eval_backward
+mechanism,2,forward,forward,1.0,runs/phase3/forward_train/mechanism/seed_2/checkpoint_final.pt,runs/phase3/forward_train/mechanism/seed_2/eval_forward
+mechanism,2,forward,backward,0.4956,runs/phase3/forward_train/mechanism/seed_2/checkpoint_final.pt,runs/phase3/forward_train/mechanism/seed_2/eval_backward
+no_injection,2,forward,forward,1.0,runs/phase3/forward_train/no_injection/seed_2/checkpoint_final.pt,runs/phase3/forward_train/no_injection/seed_2/eval_forward
+no_injection,2,forward,backward,0.4956,runs/phase3/forward_train/no_injection/seed_2/checkpoint_final.pt,runs/phase3/forward_train/no_injection/seed_2/eval_backward

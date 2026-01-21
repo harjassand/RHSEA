@@ -1,0 +1,10 @@
+variant,seed,train_task,eval_task,accuracy,checkpoint,eval_dir
+mechanism,0,backward,forward,0.516,runs/phase3b_reverse/train_backward/mechanism/seed_0/checkpoint_final.pt,runs/phase3b_reverse/train_backward/mechanism/seed_0/eval_forward
+no_injection,0,backward,forward,0.516,runs/phase3b_reverse/train_backward/no_injection/seed_0/checkpoint_final.pt,runs/phase3b_reverse/train_backward/no_injection/seed_0/eval_forward
+symmetric_control_v2_normmatched,0,backward,forward,0.516,runs/phase3b_reverse/train_backward/symmetric_control_v2_normmatched/seed_0/checkpoint_final.pt,runs/phase3b_reverse/train_backward/symmetric_control_v2_normmatched/seed_0/eval_forward
+mechanism,1,backward,forward,0.5054,runs/phase3b_reverse/train_backward/mechanism/seed_1/checkpoint_final.pt,runs/phase3b_reverse/train_backward/mechanism/seed_1/eval_forward
+no_injection,1,backward,forward,0.5054,runs/phase3b_reverse/train_backward/no_injection/seed_1/checkpoint_final.pt,runs/phase3b_reverse/train_backward/no_injection/seed_1/eval_forward
+symmetric_control_v2_normmatched,1,backward,forward,0.5054,runs/phase3b_reverse/train_backward/symmetric_control_v2_normmatched/seed_1/checkpoint_final.pt,runs/phase3b_reverse/train_backward/symmetric_control_v2_normmatched/seed_1/eval_forward
+mechanism,2,backward,forward,0.4956,runs/phase3b_reverse/train_backward/mechanism/seed_2/checkpoint_final.pt,runs/phase3b_reverse/train_backward/mechanism/seed_2/eval_forward
+no_injection,2,backward,forward,0.4956,runs/phase3b_reverse/train_backward/no_injection/seed_2/checkpoint_final.pt,runs/phase3b_reverse/train_backward/no_injection/seed_2/eval_forward
+symmetric_control_v2_normmatched,2,backward,forward,0.4956,runs/phase3b_reverse/train_backward/symmetric_control_v2_normmatched/seed_2/checkpoint_final.pt,runs/phase3b_reverse/train_backward/symmetric_control_v2_normmatched/seed_2/eval_forward
