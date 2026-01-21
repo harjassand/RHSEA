@@ -2,7 +2,9 @@
 
 ## A. Locked artifacts + provenance
 
-Repo HEAD: 79ce6cc82887abe39aabb0732a5a79903b62e649
+Repo HEAD (at closeout tag): d3d6a50b1b73a377c7e6e4c8c30807caeacb2faa
+Final closeout tag: NHSEA_V1_FINAL_CLOSEOUT_LOCKED
+Tagged commit: d3d6a50b1b73a377c7e6e4c8c30807caeacb2faa
 
 Tags (tag -> commit):
 - NHSEA_v1_P2_ADDENDUM_DRAFT: 0b4cf145c6c5015ed043a265f887ba09ebc67df6
@@ -11,6 +13,18 @@ Tags (tag -> commit):
 - NHSEA_v1_PHASE3_CLOSEOUT_LOCKED: 92361edaca446980d931fcfa6a681193df5fa34b
 - NHSEA_v1_PHASE3_SANITY_LOCK: 0b4cf145c6c5015ed043a265f887ba09ebc67df6
 - NHSEA_v1_PHASE3_SANITY_LOCKED: 92361edaca446980d931fcfa6a681193df5fa34b
+- NHSEA_V1_FINAL_CLOSEOUT_LOCKED: d3d6a50b1b73a377c7e6e4c8c30807caeacb2faa
+
+git show-ref --tags | sort:
+```
+0a2324da09a61fc4da82469db4b6e67ae7911d32 refs/tags/NHSEA_v1_PHASE3_SANITY_LOCKED
+0b4cf145c6c5015ed043a265f887ba09ebc67df6 refs/tags/NHSEA_v1_P2_ADDENDUM_DRAFT
+0b4cf145c6c5015ed043a265f887ba09ebc67df6 refs/tags/NHSEA_v1_P2_ADDENDUM_V2_APPROVED
+0b4cf145c6c5015ed043a265f887ba09ebc67df6 refs/tags/NHSEA_v1_PHASE3_CLOSEOUT
+0b4cf145c6c5015ed043a265f887ba09ebc67df6 refs/tags/NHSEA_v1_PHASE3_SANITY_LOCK
+a4b39db20e3c5df4600ec84805c27aee8f7d6f70 refs/tags/NHSEA_v1_PHASE3_CLOSEOUT_LOCKED
+d3d6a50b1b73a377c7e6e4c8c30807caeacb2faa refs/tags/NHSEA_V1_FINAL_CLOSEOUT_LOCKED
+```
 
 Phase reports and CSVs:
 - runs/phase2_claimA_v2/phase2_claimA_v2_report.md
@@ -61,6 +75,14 @@ Attribution deltas (means with 95% CI):
 | 0 | 0.001895 [0.001666, 0.002123] | 0.009424 [0.008436, 0.010411] |
 | 1 | 0.001858 [0.001620, 0.002093] | 0.000092 [-0.000316, 0.000503] |
 | 2 | 0.000771 [0.000562, 0.000982] | -0.000111 [-0.000376, 0.000069] |
+
+## C2. Asymmetry summary (baseline L directionality)
+
+- L already directional: yes; baseline asym_L median=0.8796.
+- Baseline asym_L range: min=0.5439, max=1.0255.
+- Mechanism asym_L median=0.8209 (min=0.6372, max=1.0158).
+- Symmetric_control_v2 asym_L median=0.8690 (min=0.4741, max=1.0698).
+- Directionality persists across variants; L is strongly non-symmetric without injection.
 
 ## D. Stop reasons
 
