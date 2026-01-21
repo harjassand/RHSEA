@@ -24,6 +24,7 @@ from nhsea.generators import (
 from nhsea.generators_phase3 import Phase3ChainConfig, generate_phase3_forward, generate_phase3_backward
 from nhsea.model import ModelConfig, TinyTransformer
 
+PROBE_LAYER = 2
 
 def _resolve_device(name: str) -> torch.device:
     if name == "auto":
@@ -211,7 +212,7 @@ def main() -> int:
             continue
 
         model_cfg = ModelConfig(**ckpt["model_cfg"])
-        model = TinyTransformer(model_cfg, probe_layer=2)
+        model = TinyTransformer(model_cfg, probe_layer=PROBE_LAYER)
         if task == "cycle":
             model.set_num_classes(4)
         else:
@@ -304,6 +305,8 @@ def main() -> int:
     m_min, m_med, m_max = _stats(mech_vals)
     s_min, s_med, s_max = _stats(sym_vals)
 
+    seeds = sorted({int(r["seed"]) for r in rows})
+    seed_text = ", ".join(str(s) for s in seeds) if seeds else "none"
     report_lines = [
         "# Asymmetry Report",
         "",
@@ -313,12 +316,22 @@ def main() -> int:
         "",
         "Interpretation:",
         "If baseline asym_L medians are materially above 0, L already carries directionality prior to injection.",
+        "",
+        "Measured object definition:",
+        f"- L: raw attention logits (QK^T/sqrt(d_head)) at probe layer {PROBE_LAYER}, pre-bias, pre-mask, pre-clamp; heads averaged.",
+        f"- U: raw u_q/u_k pathway at probe layer {PROBE_LAYER}, pre-clamp.",
+        "- Mask: attn_mask is applied inside attention, but asymmetry uses logits_raw before masking; padded positions remain in L/U.",
+        f"- Eval: eval_size={args.eval_size} per checkpoint; generator run_id seeded from ckpt seed(s): {seed_text}.",
     ]
 
     out_report = Path(args.out_report)
     out_report.write_text("\n".join(report_lines) + "\n")
     print(f"Wrote {out_csv}")
     print(f"Wrote {out_report}")
+    print(
+        "Asymmetry measured on raw pre-mask logits at probe layer "
+        f"{PROBE_LAYER} (heads averaged), eval_size={args.eval_size}, seeds={seed_text}."
+    )
     return 0
 
 
