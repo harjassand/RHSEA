@@ -92,3 +92,16 @@ Attribution deltas (means with 95% CI):
 ## E. Actionable next step
 
 Proceed only under NHSEA v2 task redesign with transfer-learnable tasks that make reciprocity discriminative. No further NHSEA v1 sweeps are recommended.
+
+## F. Final gates
+
+pytest -q output:
+```
+.........................                                                [100%]
+25 passed in 2.37s
+```
+
+python -m py_compile $(git ls-files '*.py'):
+```
+(no output)
+```
