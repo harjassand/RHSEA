@@ -17,15 +17,20 @@ Goal: test a discriminative reciprocity prediction on a transfer-learnable task 
 ### Instance layout (fixed length T)
 - Start token: TASK_FWD or TASK_BWD in position 0.
 - Context: K facts, each encoded as "Axx SEP Byy" (bidirectional facts in surface form).
-- Query: "QRY Axx" (forward) or "QRY Byy" (backward).
-- Candidates: two candidate spans, each as a single symbol token (Axx or Byy) at fixed slots.
-- Padding: PAD to length T.
+- Query: "QRY Axx" (forward) or "QRY Byy" (backward), drawn from one of the K facts.
+- Candidates: two candidate spans, each a single symbol token, placed at fixed slots (positions T-2 and T-1).
+- Padding: PAD to length T, with PAD filling any gap between query and candidates.
 
 ### Candidate construction (anti-leak)
 - True candidate is the correct mapping for the query under f.
 - Decoy candidate is sampled from the same symbol set, uniformly among incorrect mappings.
 - Match candidate span length (1 token) and position distribution.
 - Ensure identical token-type distributions across candidates (A vs B depending on task).
+ - Candidate order is randomized per instance; label is the true candidate index (0 or 1).
+
+### Determinism and seeding (locked)
+- All randomness is derived from instance_seed_u32(run_id, instance_id, salt="GEN_V2").
+- The instance record must include run_id, instance_id, and the derived seed used.
 
 ### Generator parameters (locked)
 - N (symbols per side): 16
@@ -90,4 +95,3 @@ Goal: test a discriminative reciprocity prediction on a transfer-learnable task 
   - python scripts/v2_fewshot_adapt.py --source_task backward --target_task forward --n_train 32,128,512
 - Aggregate:
   - python scripts/v2_preflight_aggregate.py --root runs/v2 --out v2_preflight_master.csv --report v2_preflight_report.md
-
