@@ -1,0 +1,27 @@
+{
+  "auroc": 0.5,
+  "auroc_max": 0.55,
+  "features": [
+    "len_min",
+    "len_max",
+    "len_absdiff",
+    "pos_min",
+    "pos_max",
+    "pos_absdiff",
+    "char_min",
+    "char_max",
+    "char_absdiff"
+  ],
+  "n": 4000,
+  "passed": true,
+  "seed": 0,
+  "task": "topology",
+  "v3_gen": {
+    "K": 4,
+    "L_max": 6,
+    "L_min": 3,
+    "M": 8,
+    "T": 64,
+    "vocab_size": 200
+  }
+}

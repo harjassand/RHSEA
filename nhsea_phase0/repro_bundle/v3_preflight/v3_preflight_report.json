@@ -1,0 +1,151 @@
+{
+  "few_shot": {
+    "conclusion_to_topology_n128": {
+      "acc": 0.5373666666666667,
+      "ci_high": 0.5430037334219554,
+      "ci_low": 0.531720031284228,
+      "correct": 16121,
+      "total": 30000
+    },
+    "conclusion_to_topology_n32": {
+      "acc": 0.5326666666666666,
+      "ci_high": 0.5383080684453391,
+      "ci_low": 0.5270168998080594,
+      "correct": 15980,
+      "total": 30000
+    },
+    "conclusion_to_topology_n512": {
+      "acc": 0.5405,
+      "ci_high": 0.5461338967650219,
+      "ci_low": 0.5348557322430182,
+      "correct": 16215,
+      "total": 30000
+    },
+    "topology_to_conclusion_n128": {
+      "acc": 0.5018333333333334,
+      "ci_high": 0.5074907309794482,
+      "ci_low": 0.4961754662184466,
+      "correct": 15055,
+      "total": 30000
+    },
+    "topology_to_conclusion_n32": {
+      "acc": 0.5031333333333333,
+      "ci_high": 0.5087904914804369,
+      "ci_low": 0.4974753728214196,
+      "correct": 15094,
+      "total": 30000
+    },
+    "topology_to_conclusion_n512": {
+      "acc": 0.5027333333333334,
+      "ci_high": 0.5083905692456044,
+      "ci_low": 0.4970753974858026,
+      "correct": 15082,
+      "total": 30000
+    }
+  },
+  "gates": {
+    "in_task_pass": true,
+    "leak_gate_pass": true,
+    "n_train_gate": 512,
+    "overall_pass": true,
+    "topology_pass": true,
+    "transfer_pass": true
+  },
+  "in_task": {
+    "conclusion": {
+      "acc": 1.0,
+      "ci_high": 1.0,
+      "ci_low": 0.9998719630622233,
+      "correct": 30000,
+      "total": 30000
+    },
+    "topology": {
+      "acc": 0.6508666666666667,
+      "ci_high": 0.6562413645004391,
+      "ci_low": 0.6454533358208691,
+      "correct": 19526,
+      "total": 30000
+    }
+  },
+  "leak_gate": {
+    "backward": {
+      "auroc": 0.5,
+      "auroc_max": 0.55,
+      "features": [
+        "len_min",
+        "len_max",
+        "len_absdiff",
+        "pos_min",
+        "pos_max",
+        "pos_absdiff",
+        "char_min",
+        "char_max",
+        "char_absdiff"
+      ],
+      "n": 4000,
+      "passed": true,
+      "seed": 0,
+      "task": "topology",
+      "v3_gen": {
+        "K": 4,
+        "L_max": 6,
+        "L_min": 3,
+        "M": 8,
+        "T": 64,
+        "vocab_size": 200
+      }
+    },
+    "forward": {
+      "auroc": 0.5,
+      "auroc_max": 0.55,
+      "features": [
+        "len_min",
+        "len_max",
+        "len_absdiff",
+        "pos_min",
+        "pos_max",
+        "pos_absdiff",
+        "char_min",
+        "char_max",
+        "char_absdiff"
+      ],
+      "n": 4000,
+      "passed": true,
+      "seed": 0,
+      "task": "conclusion",
+      "v3_gen": {
+        "K": 4,
+        "L_max": 6,
+        "L_min": 3,
+        "M": 8,
+        "T": 64,
+        "vocab_size": 200
+      }
+    }
+  },
+  "topology": {
+    "mass_ci_high": -9.68496587111354e-05,
+    "mass_ci_low": -0.0007239101402294544,
+    "mass_mean": -0.0003929827352119742,
+    "n_pairs": 15000,
+    "pr_ci_high": -0.0044410346156164475,
+    "pr_ci_low": -0.03243730854021458,
+    "pr_mean": -0.018702262514011463
+  },
+  "zero_shot": {
+    "conclusion_to_topology": {
+      "acc": 0.5,
+      "ci_high": 0.5056576704078768,
+      "ci_low": 0.49434232959212315,
+      "correct": 15000,
+      "total": 30000
+    },
+    "topology_to_conclusion": {
+      "acc": 0.4971,
+      "ci_high": 0.5027579465643642,
+      "ci_low": 0.4914427960498748,
+      "correct": 14913,
+      "total": 30000
+    }
+  }
+}

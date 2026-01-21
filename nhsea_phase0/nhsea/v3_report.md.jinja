@@ -1,0 +1,29 @@
+# V3 Preflight Report
+
+## Leak gate
+- forward: AUROC={{ leak_forward.auroc }} pass={{ leak_forward.passed }}
+- backward: AUROC={{ leak_backward.auroc }} pass={{ leak_backward.passed }}
+
+## In-task accuracy
+- conclusion: acc={{ in_task.conclusion.acc }} CI=[{{ in_task.conclusion.ci_low }},{{ in_task.conclusion.ci_high }}] n={{ in_task.conclusion.total }}
+- topology: acc={{ in_task.topology.acc }} CI=[{{ in_task.topology.ci_low }},{{ in_task.topology.ci_high }}] n={{ in_task.topology.total }}
+
+## Zero-shot transfer
+- conclusion->topology: acc={{ zero_shot.conclusion_to_topology.acc }} CI=[{{ zero_shot.conclusion_to_topology.ci_low }},{{ zero_shot.conclusion_to_topology.ci_high }}]
+- topology->conclusion: acc={{ zero_shot.topology_to_conclusion.acc }} CI=[{{ zero_shot.topology_to_conclusion.ci_low }},{{ zero_shot.topology_to_conclusion.ci_high }}]
+
+## Topology sensitivity (paired OBC vs PBC)
+- PR diff (OBC-PBC): mean={{ topology.pr_mean }} CI=[{{ topology.pr_ci_low }},{{ topology.pr_ci_high }}]
+- Mass diff (OBC-PBC): mean={{ topology.mass_mean }} CI=[{{ topology.mass_ci_low }},{{ topology.mass_ci_high }}]
+
+## Gate status
+- leak_gate_pass={{ gates.leak_gate_pass }}
+- in_task_pass={{ gates.in_task_pass }}
+- transfer_pass={{ gates.transfer_pass }}
+- topology_pass={{ gates.topology_pass }}
+- overall_pass={{ gates.overall_pass }}
+
+## Why v3 answers the NHSEA hypothesis better than v1/v2
+- v1/v2 transfer sat at chance, so reciprocity tests were non-discriminative.
+- v3 enforces an explicit OBC vs PBC topology contrast tied to boundary localization observables.
+- Baseline transfer-learnability is gated before any mechanism compute is allowed.
