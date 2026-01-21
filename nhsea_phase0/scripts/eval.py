@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import platform
 import gzip
 import json
 import subprocess
@@ -15,7 +16,9 @@ import torch
 from torch.utils.data import DataLoader
 
 from nhsea.data import BackwardChainDataset, CycleRegimeDataset, DatasetConfig, ForwardChainDataset, collate_batch
+from nhsea.data_phase3 import Phase3BackwardDataset, Phase3ForwardDataset
 from nhsea.generators import BackwardChainConfig, CycleRegimeConfig, ForwardChainConfig, candidate_token_spans, premise_token_set
+from nhsea.generators_phase3 import Phase3ChainConfig
 from nhsea.metrics import (
     delta_cyc_stats,
     participation_ratio,
@@ -47,11 +50,13 @@ def _summary(values: List[float], seed: int = 0, n_boot: int = 10000) -> Dict[st
     }
 
 
-def _variant_spec(variant: str, alpha: float, beta: float) -> OperatorSpec:
+def _variant_spec(variant: str, alpha: float, beta: float, gamma: float | None = None) -> OperatorSpec:
     if variant == "mechanism":
         return OperatorSpec(alpha=alpha, beta=beta, variant="mechanism")
     if variant == "symmetric_control":
         return OperatorSpec(alpha=alpha, beta=beta, variant="symmetric_control")
+    if variant == "symmetric_control_v2_normmatched":
+        return OperatorSpec(alpha=alpha, beta=beta, gamma=gamma, variant="symmetric_control_v2_normmatched")
     if variant == "no_injection":
         return OperatorSpec(alpha=alpha, beta=0.0, variant="no_injection")
     if variant == "no_drift":
@@ -59,11 +64,74 @@ def _variant_spec(variant: str, alpha: float, beta: float) -> OperatorSpec:
     raise ValueError(f"Unknown variant: {variant}")
 
 
+def _compute_gamma_stats(
+    loader: DataLoader,
+    model: TinyTransformer,
+    variant: str,
+    alpha: float,
+    beta: float,
+    device: torch.device,
+) -> Dict[str, float]:
+    beta_eff = 0.0 if variant == "no_injection" else beta
+    A_vals: List[float] = []
+    B0_vals: List[float] = []
+    zero_count = 0
+    total = 0
+    with torch.no_grad():
+        for input_ids, attn_mask, _labels, _metas in loader:
+            input_ids = input_ids.to(device)
+            attn_mask = attn_mask.to(device)
+            _logits, _probe_logits, probe_U = model(
+                input_ids,
+                attn_mask=attn_mask,
+                variant=variant,
+                alpha=alpha,
+                beta=beta,
+                gamma=1.0,
+                return_probe=True,
+            )
+            probe_U_np = probe_U.cpu().numpy()
+            for idx in range(probe_U_np.shape[0]):
+                U = probe_U_np[idx]
+                A, B0 = scale_norms(U, beta_eff)
+                A_vals.append(float(A))
+                B0_vals.append(float(B0))
+                if B0 == 0.0:
+                    zero_count += 1
+                total += 1
+    A_median = float(np.median(np.asarray(A_vals))) if A_vals else 0.0
+    B0_median = float(np.median(np.asarray(B0_vals))) if B0_vals else 0.0
+    gamma = 1.0 if B0_median == 0.0 else A_median / B0_median
+    zero_rate = 0.0 if total == 0 else zero_count / float(total)
+    return {
+        "A_median": A_median,
+        "B0_median": B0_median,
+        "gamma": float(gamma),
+        "zero_rate_B0": float(zero_rate),
+    }
+
+
 def _git_commit() -> str:
     try:
         return subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
     except Exception:
         return "unknown"
+
+
+def _resolve_device(name: str) -> torch.device:
+    if name == "auto":
+        if torch.backends.mps.is_available():
+            return torch.device("mps")
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        return torch.device("cpu")
+    if name == "mps":
+        return torch.device("mps")
+    if name == "cuda":
+        return torch.device("cuda")
+    if name == "cpu":
+        return torch.device("cpu")
+    raise ValueError(f"Unknown device: {name}")
 
 
 def main() -> int:
@@ -75,6 +143,8 @@ def main() -> int:
     ap.add_argument("--k_prop", type=int, default=4)
     ap.add_argument("--out_dir", type=str, default="")
     ap.add_argument("--bootstrap", type=int, default=10000)
+    ap.add_argument("--device", type=str, default="auto")
+    ap.add_argument("--phase3", action="store_true")
     args = ap.parse_args()
 
     ckpt = torch.load(args.checkpoint, map_location="cpu")
@@ -88,26 +158,39 @@ def main() -> int:
         model.set_num_classes(2)
     model.load_state_dict(ckpt["model_state"])
     model.eval()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = _resolve_device(args.device)
     model.to(device)
 
+    phase3 = bool(ckpt.get("phase3", False) or args.phase3)
     data_cfg = DatasetConfig(task=ckpt["task"], split="eval", size=args.eval_size, seed=ckpt["seed"])
     if ckpt["task"] == "forward":
-        gen_cfg = ForwardChainConfig()
-        dataset = ForwardChainDataset(data_cfg, gen_cfg)
+        if phase3:
+            gen_cfg = Phase3ChainConfig()
+            dataset = Phase3ForwardDataset(data_cfg, gen_cfg)
+        else:
+            gen_cfg = ForwardChainConfig()
+            dataset = ForwardChainDataset(data_cfg, gen_cfg)
     elif ckpt["task"] == "cycle":
         gen_cfg = CycleRegimeConfig()
         dataset = CycleRegimeDataset(data_cfg, gen_cfg)
     else:
-        gen_cfg = BackwardChainConfig()
-        dataset = BackwardChainDataset(data_cfg, gen_cfg)
-
-    loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_batch)
+        if phase3:
+            gen_cfg = Phase3ChainConfig()
+            dataset = Phase3BackwardDataset(data_cfg, gen_cfg)
+        else:
+            gen_cfg = BackwardChainConfig()
+            dataset = BackwardChainDataset(data_cfg, gen_cfg)
 
     alpha = float(ckpt["alpha"])
     beta = float(ckpt["beta"])
     variant = str(ckpt["variant"])
     beta_eff = 0.0 if variant == "no_injection" else beta
+
+    loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_batch)
+    gamma = None
+    if variant == "symmetric_control_v2_normmatched":
+        gamma = _compute_gamma_stats(loader, model, variant, alpha, beta, device)["gamma"]
+        loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_batch)
 
     all_preds: List[int] = []
     all_labels: List[int] = []
@@ -115,14 +198,14 @@ def main() -> int:
     rho_vals: List[float] = []
     normA_vals: List[float] = []
     normB_vals: List[float] = []
+    normB0_vals: List[float] = []
 
     cyc_vals_a: Dict[int, Dict[int, List[float]]] = {r: {2: [], 3: [], 4: []} for r in range(4)}
     cyc_vals_b: Dict[int, Dict[int, List[float]]] = {r: {2: [], 3: [], 4: []} for r in range(4)}
     pr_vals_a: Dict[int, List[float]] = {r: [] for r in range(4)}
     pr_vals_b: Dict[int, List[float]] = {r: [] for r in range(4)}
 
-    spec_variant = _variant_spec(variant, alpha, beta)
-    spec_variant = _variant_spec(variant, alpha, beta)
+    spec_variant = _variant_spec(variant, alpha, beta, gamma=gamma)
 
     out_dir = Path(args.out_dir) if args.out_dir else Path(args.checkpoint).parent
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -139,6 +222,7 @@ def main() -> int:
                 variant=variant,
                 alpha=alpha,
                 beta=beta,
+                gamma=1.0 if gamma is None else gamma,
                 return_probe=True,
             )
 
@@ -155,11 +239,17 @@ def main() -> int:
                 run_id = dataset.run_id
                 instance_id = meta.instance_id
 
-                A, B = scale_norms(U, beta_eff)
-                rho = rho_ratio(A, B)
+                A, B0 = scale_norms(U, beta_eff)
+                if variant == "symmetric_control_v2_normmatched":
+                    B = (gamma if gamma is not None else 1.0) * B0
+                    rho = rho_ratio(A, B)
+                else:
+                    B = B0
+                    rho = rho_ratio(A, B0)
                 rho_vals.append(float(rho))
                 normA_vals.append(float(A))
                 normB_vals.append(float(B))
+                normB0_vals.append(float(B0))
 
                 record = {
                     "instance_id": instance_id,
@@ -169,6 +259,8 @@ def main() -> int:
                     "B": float(B),
                     "rho": float(rho),
                 }
+                if variant == "symmetric_control_v2_normmatched":
+                    record["B0"] = float(B0)
 
                 if ckpt["task"] == "forward":
                     cand1, cand2 = candidate_token_spans(meta)
@@ -227,11 +319,19 @@ def main() -> int:
 
     accuracy = float(np.mean(np.array(all_preds) == np.array(all_labels)))
     rho_median = float(np.median(np.asarray(rho_vals)))
-    flag = not (0.9 <= rho_median <= 1.1)
+    if variant == "symmetric_control_v2_normmatched":
+        B0_median = float(np.median(np.asarray(normB0_vals))) if normB0_vals else 0.0
+        zero_rate_B0 = 0.0
+        if normB0_vals:
+            zero_rate_B0 = float(np.mean(np.asarray(normB0_vals) == 0.0))
+        flag = not (B0_median > 0.0 and zero_rate_B0 <= 0.001)
+    else:
+        flag = not (0.9 <= rho_median <= 1.1)
 
     out = {
         "task": ckpt["task"],
         "variant": variant,
+        "phase3": phase3,
         "alpha": alpha,
         "beta": beta,
         "k_tok": args.k_tok,
@@ -243,6 +343,13 @@ def main() -> int:
         "rho_flag": flag,
         "git_commit": _git_commit(),
     }
+    if variant == "symmetric_control_v2_normmatched":
+        out["sym_control_v2"] = {
+            "A_median": float(np.median(np.asarray(normA_vals))) if normA_vals else 0.0,
+            "B0_median": float(np.median(np.asarray(normB0_vals))) if normB0_vals else 0.0,
+            "gamma": float(gamma if gamma is not None else 1.0),
+            "zero_rate_B0": float(np.mean(np.asarray(normB0_vals) == 0.0)) if normB0_vals else 0.0,
+        }
 
     if ckpt["task"] == "forward":
         out["AdjLocGap"] = _summary(adj_loc_gaps, seed=ckpt["seed"], n_boot=args.bootstrap)
@@ -260,8 +367,12 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     json_path = out_dir / "summary.json"
     json_path.write_text(json.dumps(out, indent=2, sort_keys=True))
+    eval_json_path = out_dir / "eval_summary.json"
+    eval_json_path.write_text(json.dumps(out, indent=2, sort_keys=True))
     csv_path = out_dir / "summary.csv"
     csv_path.write_text("summary\n" + json.dumps(out))
+    eval_csv_path = out_dir / "eval_summary.csv"
+    eval_csv_path.write_text("summary\n" + json.dumps(out))
 
     eval_cfg = {
         "checkpoint": str(args.checkpoint),
@@ -270,16 +381,24 @@ def main() -> int:
         "k_tok": args.k_tok,
         "k_prop": args.k_prop,
         "bootstrap": args.bootstrap,
+        "phase3": phase3,
         "git_commit": _git_commit(),
+        "python": platform.python_version(),
+        "torch": torch.__version__,
+        "device": str(device),
         "gen_cfg": gen_cfg.__dict__,
     }
+    if variant == "symmetric_control_v2_normmatched":
+        eval_cfg["gamma"] = float(gamma if gamma is not None else 1.0)
     (out_dir / "eval_config.json").write_text(json.dumps(eval_cfg, indent=2, sort_keys=True))
 
     if inst_f is not None:
         inst_f.close()
 
     print(f"Wrote {json_path}")
+    print(f"Wrote {eval_json_path}")
     print(f"Wrote {csv_path}")
+    print(f"Wrote {eval_csv_path}")
     return 0
 
 

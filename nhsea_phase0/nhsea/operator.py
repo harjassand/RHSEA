@@ -64,7 +64,13 @@ def sigma_logistic(Z: np.ndarray) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-Z))
 
 
-Variant = Literal["mechanism", "symmetric_control", "no_injection", "no_drift"]
+Variant = Literal[
+    "mechanism",
+    "symmetric_control",
+    "symmetric_control_v2_normmatched",
+    "no_injection",
+    "no_drift",
+]
 
 
 @dataclass(frozen=True)
@@ -72,6 +78,7 @@ class OperatorSpec:
     alpha: float
     beta: float
     variant: Variant
+    gamma: Optional[float] = None
     z_min: float = -30.0
     z_max: float = 30.0
 
@@ -93,7 +100,7 @@ def build_run_operator(
 
     D = drift_matrix(T)
 
-    if spec.variant in ("mechanism", "symmetric_control", "no_drift"):
+    if spec.variant in ("mechanism", "symmetric_control", "symmetric_control_v2_normmatched", "no_drift"):
         if U is None:
             raise ValueError("U must be provided for injection variants")
         U = np.asarray(U, dtype=np.float64)
@@ -106,6 +113,10 @@ def build_run_operator(
     elif spec.variant == "symmetric_control":
         S_dummy = U + U.T
         O_raw = L + spec.alpha * D + spec.beta * S_dummy
+    elif spec.variant == "symmetric_control_v2_normmatched":
+        S_dummy = U + U.T
+        gamma = 1.0 if spec.gamma is None else float(spec.gamma)
+        O_raw = L + spec.alpha * D + spec.beta * gamma * S_dummy
     elif spec.variant == "no_injection":
         O_raw = L + spec.alpha * D
     elif spec.variant == "no_drift":

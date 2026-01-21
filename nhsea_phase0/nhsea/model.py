@@ -122,6 +122,7 @@ class TinyTransformer(nn.Module):
         variant: str = "mechanism",
         alpha: float = 0.0,
         beta: float = 0.0,
+        gamma: float = 1.0,
         return_probe: bool = False,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]]:
         B, T = input_ids.shape
@@ -144,6 +145,9 @@ class TinyTransformer(nn.Module):
                 elif variant == "symmetric_control":
                     S_dummy = U + U.transpose(-2, -1)
                     bias = alpha * D + beta * S_dummy
+                elif variant == "symmetric_control_v2_normmatched":
+                    S_dummy = U + U.transpose(-2, -1)
+                    bias = alpha * D + beta * float(gamma) * S_dummy
                 elif variant == "no_injection":
                     bias = alpha * D
                 elif variant == "no_drift":

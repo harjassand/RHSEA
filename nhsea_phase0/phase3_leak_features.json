@@ -1,0 +1,14 @@
+{
+  "features": [
+    "len_min",
+    "len_max",
+    "len_absdiff",
+    "pos_min",
+    "pos_max",
+    "pos_absdiff",
+    "char_min",
+    "char_max",
+    "char_absdiff"
+  ],
+  "task": "forward"
+}

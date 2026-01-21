@@ -8,6 +8,7 @@ Layer B: pipeline-integrated tests from token weights through TopK/collapse/Perm
 from __future__ import annotations
 
 import json
+import argparse
 from pathlib import Path
 from typing import Dict, List, Sequence, Tuple
 
@@ -315,6 +316,9 @@ def integrated_layer(T: int, M: int, w_hi: float, w_lo: float, n_perm: int) -> T
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out", type=str, default="")
+    args = ap.parse_args()
     w_hi, w_lo = 0.9, 0.1
     n_perm = 100
 
@@ -330,10 +334,15 @@ def main() -> int:
 
     report["passed"] = all(report["criteria"].values())
 
-    out_dir = Path("reports")
+    if args.out:
+        json_path = Path(args.out)
+        out_dir = json_path.parent
+        txt_path = out_dir / f"{json_path.stem}.txt"
+    else:
+        out_dir = Path("reports")
+        json_path = out_dir / "diagnostic_stress_report.json"
+        txt_path = out_dir / "diagnostic_stress_report.txt"
     out_dir.mkdir(parents=True, exist_ok=True)
-    json_path = out_dir / "diagnostic_stress_report.json"
-    txt_path = out_dir / "diagnostic_stress_report.txt"
 
     json_path.write_text(json.dumps(report, indent=2, sort_keys=True))
     lines: List[str] = ["Stress diagnostics summary", f"passed={report['passed']}"]

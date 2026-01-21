@@ -14,7 +14,9 @@ import torch
 from torch.utils.data import DataLoader
 
 from nhsea.data import BackwardChainDataset, CycleRegimeDataset, DatasetConfig, ForwardChainDataset, collate_batch
+from nhsea.data_phase3 import Phase3BackwardDataset, Phase3ForwardDataset
 from nhsea.generators import BackwardChainConfig, CycleRegimeConfig, ForwardChainConfig
+from nhsea.generators_phase3 import Phase3ChainConfig
 from nhsea.model import ModelConfig, TinyTransformer
 
 
@@ -32,6 +34,7 @@ def main() -> int:
     ap.add_argument("--eval_size", type=int, default=10000)
     ap.add_argument("--batch_size", type=int, default=64)
     ap.add_argument("--out_dir", type=str, required=True)
+    ap.add_argument("--phase3", action="store_true")
     args = ap.parse_args()
 
     ckpt = torch.load(args.checkpoint, map_location="cpu")
@@ -46,16 +49,25 @@ def main() -> int:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
+    phase3 = bool(ckpt.get("phase3", False) or args.phase3)
     data_cfg = DatasetConfig(task=args.task, split="eval", size=args.eval_size, seed=int(ckpt["seed"]))
     if args.task == "forward":
-        gen_cfg = ForwardChainConfig()
-        dataset = ForwardChainDataset(data_cfg, gen_cfg)
+        if phase3:
+            gen_cfg = Phase3ChainConfig()
+            dataset = Phase3ForwardDataset(data_cfg, gen_cfg)
+        else:
+            gen_cfg = ForwardChainConfig()
+            dataset = ForwardChainDataset(data_cfg, gen_cfg)
     elif args.task == "cycle":
         gen_cfg = CycleRegimeConfig()
         dataset = CycleRegimeDataset(data_cfg, gen_cfg)
     else:
-        gen_cfg = BackwardChainConfig()
-        dataset = BackwardChainDataset(data_cfg, gen_cfg)
+        if phase3:
+            gen_cfg = Phase3ChainConfig()
+            dataset = Phase3BackwardDataset(data_cfg, gen_cfg)
+        else:
+            gen_cfg = BackwardChainConfig()
+            dataset = BackwardChainDataset(data_cfg, gen_cfg)
 
     loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_batch)
 
@@ -88,6 +100,7 @@ def main() -> int:
         "checkpoint": str(args.checkpoint),
         "task": args.task,
         "accuracy": accuracy,
+        "phase3": phase3,
         "git_commit": _git_commit(),
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True))
@@ -99,6 +112,7 @@ def main() -> int:
                 "task": args.task,
                 "eval_size": args.eval_size,
                 "batch_size": args.batch_size,
+                "phase3": phase3,
                 "git_commit": _git_commit(),
                 "gen_cfg": gen_cfg.__dict__,
             },

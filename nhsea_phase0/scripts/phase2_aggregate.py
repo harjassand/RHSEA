@@ -3,11 +3,13 @@
 
 from __future__ import annotations
 
+import argparse
 import csv
 import gzip
 import json
+import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -53,22 +55,32 @@ def _read_json(path: Path) -> Dict:
     return json.loads(path.read_text())
 
 
-def _iter_summary_files() -> List[Path]:
-    return sorted(ROOT.glob("**/summary.json"))
+def _iter_summary_files(root: Path) -> List[Path]:
+    return sorted(root.glob("**/summary.json"))
 
 
-def _parse_run_path(path: Path) -> Dict[str, str]:
-    parts = path.parts
+def _parse_run_path(path: Path, root: Path) -> Optional[Dict[str, str]]:
+    # supports both:
     # runs/phase2/{task}/{variant}/seed_{s}/summary.json
-    idx = parts.index("phase2")
-    task = parts[idx + 1]
-    variant = parts[idx + 2]
-    seed = parts[idx + 3].replace("seed_", "")
-    return {"task": task, "variant": variant, "seed": seed}
+    # runs/phase2_restart_v2/phase2_v2_{task}_{variant}_seed{s}/summary.json
+    rel = path.relative_to(root)
+    if len(rel.parts) >= 4:
+        task = rel.parts[0]
+        variant = rel.parts[1]
+        seed = rel.parts[2].replace("seed_", "")
+        return {"task": task, "variant": variant, "seed": seed}
+    if len(rel.parts) >= 2:
+        run_id = rel.parts[0]
+        match = re.match(
+            r"^phase2_v2_(?P<task>forward|cycle)_(?P<variant>mechanism|symmetric_control|symmetric_control_v2_normmatched|no_injection|no_drift)_seed(?P<seed>\d+)$",
+            run_id,
+        )
+        if match:
+            return match.groupdict()
+    return None
 
 
-def write_aggregate_csv(rows: List[Dict[str, str]]) -> None:
-    out_path = ROOT / "phase2_aggregate.csv"
+def write_aggregate_csv(rows: List[Dict[str, str]], out_path: Path) -> None:
     if not rows:
         out_path.write_text("")
         return
@@ -81,15 +93,33 @@ def write_aggregate_csv(rows: List[Dict[str, str]]) -> None:
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--root", type=str, default=str(ROOT))
+    ap.add_argument("--out", type=str, default="")
+    ap.add_argument("--out_json", type=str, default="")
+    ap.add_argument("--master_out", type=str, default="")
+    ap.add_argument("--report_out", type=str, default="")
+    args = ap.parse_args()
+    root = Path(args.root)
     rows: List[Dict[str, str]] = []
 
-    for summary_path in _iter_summary_files():
-        meta = _parse_run_path(summary_path)
+    run_entries: List[Dict[str, str]] = []
+    for summary_path in _iter_summary_files(root):
+        meta = _parse_run_path(summary_path, root)
+        if meta is None:
+            continue
+        meta = dict(meta)
+        meta["summary_path"] = str(summary_path)
+        meta["run_dir"] = str(summary_path.parent)
+        run_entries.append(meta)
+
+    for entry in run_entries:
+        summary_path = Path(entry["summary_path"])
         data = _read_json(summary_path)
         row = {
-            "task": meta["task"],
-            "variant": meta["variant"],
-            "seed": meta["seed"],
+            "task": entry["task"],
+            "variant": entry["variant"],
+            "seed": entry["seed"],
             "accuracy": data.get("accuracy", ""),
             "alpha": data.get("alpha", data.get("alpha_mech", "")),
             "beta": data.get("beta", data.get("beta_mech", "")),
@@ -121,7 +151,44 @@ def main() -> int:
             )
         rows.append(row)
 
-    write_aggregate_csv(rows)
+    out_csv = Path(args.out) if args.out else root / "phase2_aggregate.csv"
+    write_aggregate_csv(rows, out_csv)
+    out_json = Path(args.out_json) if args.out_json else root / "phase2_aggregate.json"
+    out_json.write_text(json.dumps(rows, indent=2, sort_keys=True))
+
+    master_rows: List[Dict[str, str]] = []
+    for entry in run_entries:
+        summary_path = Path(entry["summary_path"])
+        data = _read_json(summary_path)
+        base = {
+            "task": entry["task"],
+            "variant": entry["variant"],
+            "seed": entry["seed"],
+            "accuracy": data.get("accuracy", ""),
+            "alpha": data.get("alpha", data.get("alpha_mech", "")),
+            "beta": data.get("beta", data.get("beta_mech", "")),
+            "k_tok": data.get("k_tok", ""),
+            "k_prop": data.get("k_prop", ""),
+            "rho_median": data.get("rho_median", ""),
+            "rho_flag": data.get("rho_flag", ""),
+            "A_median": data.get("A_median", ""),
+            "B_median": data.get("B_median", ""),
+        }
+        if entry["task"] == "cycle":
+            for pipe in ("A", "B"):
+                row = dict(base)
+                row["pipeline"] = pipe
+                row["DeltaCyc"] = json.dumps(data.get(f"DeltaCyc_{pipe}", {}))
+                row["PR"] = json.dumps(data.get(f"PR_{pipe}", {}))
+                master_rows.append(row)
+        else:
+            row = dict(base)
+            row["pipeline"] = "token"
+            if "AdjLocGap" in data:
+                row["AdjLocGap"] = json.dumps(data["AdjLocGap"])
+            master_rows.append(row)
+    master_out = Path(args.master_out) if args.master_out else root / "phase2_master.csv"
+    write_aggregate_csv(master_rows, master_out)
 
     # Build report
     report_lines: List[str] = []
@@ -129,7 +196,10 @@ def main() -> int:
     report_lines.append("")
 
     # Claim A pooled SelLocGap across seeds
-    paired_dirs = sorted((ROOT / "forward/paired_mech_minus_sym").glob("seed_*"))
+    paired_dirs: List[Path] = []
+    for base in (root / "forward/paired_mech_minus_sym", root / "paired_mech_minus_sym"):
+        if base.exists():
+            paired_dirs.extend(sorted(base.glob("seed_*")))
     pooled_sel: List[float] = []
     seed_lines: List[str] = []
     valid_seeds = 0
@@ -137,8 +207,11 @@ def main() -> int:
         summary = _read_json(d / "summary.json")
         seed = d.name.replace("seed_", "")
         flag = summary.get("rho_flag", True)
+        rho = summary.get("rho_median", float("nan"))
         seed_lines.append(
-            f"- seed {seed}: SelLocGap mean={summary['SelLocGap']['mean']:.6f} CI=[{summary['SelLocGap']['ci_low']:.6f},{summary['SelLocGap']['ci_high']:.6f}] rho_flag={flag}"
+            f"- seed {seed}: SelLocGap mean={summary['SelLocGap']['mean']:.6f} "
+            f"CI=[{summary['SelLocGap']['ci_low']:.6f},{summary['SelLocGap']['ci_high']:.6f}] "
+            f"rho_median={rho:.6f} rho_flag={flag}"
         )
         if not flag:
             valid_seeds += 1
@@ -162,10 +235,10 @@ def main() -> int:
     # Claim B (mechanism cycle task)
     report_lines.append("")
     report_lines.append("## Claim B (Cycle diagnostics, mechanism)")
-    mech_dirs = sorted((ROOT / "cycle/mechanism").glob("seed_*"))
-    for d in mech_dirs:
-        seed = d.name.replace("seed_", "")
-        inst_path = d / "eval_instances.jsonl.gz"
+    mech_runs = [e for e in run_entries if e["task"] == "cycle" and e["variant"] == "mechanism"]
+    for entry in mech_runs:
+        seed = entry["seed"]
+        inst_path = Path(entry["run_dir"]) / "eval_instances.jsonl.gz"
         pr_a_dag, pr_a_cyc = [], []
         pr_b_dag, pr_b_cyc = [], []
         delta_a = {2: {"dag": [], "cyc": []}, 3: {"dag": [], "cyc": []}, 4: {"dag": [], "cyc": []}}
@@ -209,7 +282,7 @@ def main() -> int:
                     f"  ΔCyc{ell}_A(cyc-DAG) mean={stats['mean']:.6f} CI=[{stats['ci_low']:.6f},{stats['ci_high']:.6f}]"
                 )
 
-    report_path = ROOT / "phase2_report.md"
+    report_path = Path(args.report_out) if args.report_out else root / "phase2_report.md"
     report_path.write_text("\n".join(report_lines) + "\n")
     print(f"Wrote {report_path}")
     return 0

@@ -81,8 +81,8 @@ def token_sel_loc_gap(
         raise ValueError("L and U must be square and same shape")
     if spec_mech.variant != "mechanism":
         raise ValueError("spec_mech.variant must be 'mechanism'")
-    if spec_sym.variant != "symmetric_control":
-        raise ValueError("spec_sym.variant must be 'symmetric_control'")
+    if spec_sym.variant not in ("symmetric_control", "symmetric_control_v2_normmatched"):
+        raise ValueError("spec_sym.variant must be a symmetric control variant")
 
     s_tok = min(5, T)
     cand_all = list(cand_true_tokens) + list(cand_false_tokens)
